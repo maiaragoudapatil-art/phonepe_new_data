@@ -1,26 +1,50 @@
 import streamlit as st
 import pandas as pd
 
+# =========================
+# 🔹 PAGE CONFIG
+# =========================
 st.set_page_config(page_title="PhonePe Insights", layout="wide")
 
-# Title
-st.title("📊 PhonePe Transaction Insights")
-
-# Load data
+# =========================
+# 🔹 LOAD DATA
+# =========================
 df = pd.read_csv("cleaned_phonepe_transactions.csv")
 
 # =========================
-# 🔹 SIDEBAR FILTER
+# 🔹 TITLE
 # =========================
-st.sidebar.header("Filters")
+st.title("📊 PhonePe Transaction Insights")
 
-state = st.sidebar.selectbox(
+# =========================
+# 🔹 SIDEBAR FILTERS
+# =========================
+st.sidebar.header("🔍 Filters")
+
+# Multi-select state
+states = st.sidebar.multiselect(
     "Select State",
-    ["All"] + list(df['state'].unique())
+    options=sorted(df['state'].unique()),
+    default=sorted(df['state'].unique())
 )
 
-if state != "All":
-    df = df[df['state'] == state]
+# Year filter (optional but useful)
+years = st.sidebar.multiselect(
+    "Select Year",
+    options=sorted(df['year'].unique()),
+    default=sorted(df['year'].unique())
+)
+
+# Apply filters
+filtered_df = df[
+    (df['state'].isin(states)) &
+    (df['year'].isin(years))
+]
+
+# Safety check
+if filtered_df.empty:
+    st.warning("No data available for selected filters")
+    st.stop()
 
 # =========================
 # 🔹 KPI SECTION
@@ -29,22 +53,25 @@ st.subheader("Overview")
 
 col1, col2 = st.columns(2)
 
-col1.metric("💰 Total Amount", f"{df['amount'].sum():,.0f}")
-col2.metric("🔢 Total Transactions", f"{df['count'].sum():,.0f}")
+total_amount = filtered_df['amount'].sum()
+total_count = filtered_df['count'].sum()
+
+col1.metric("💰 Total Amount", f"{total_amount:,.0f}")
+col2.metric("🔢 Total Transactions", f"{total_count:,.0f}")
 
 # =========================
-# 🔹 TABS (KEY IMPROVEMENT)
+# 🔹 TABS
 # =========================
 tab1, tab2, tab3 = st.tabs(["🏆 Top States", "💳 Categories", "📈 Trends"])
 
 # -------------------------
-# TAB 1: Top States
+# 🔹 TAB 1: TOP STATES
 # -------------------------
 with tab1:
-    st.subheader("Top 10 States")
+    st.subheader("Top 10 States by Transaction Amount")
 
     top_states = (
-        df.groupby("state")["amount"]
+        filtered_df.groupby("state")["amount"]
         .sum()
         .sort_values(ascending=False)
         .head(10)
@@ -53,27 +80,34 @@ with tab1:
     st.bar_chart(top_states)
 
 # -------------------------
-# TAB 2: Categories
+# 🔹 TAB 2: CATEGORIES
 # -------------------------
 with tab2:
-    st.subheader("Transaction Types")
+    st.subheader("Transaction Type Distribution")
 
-    txn_type = df.groupby("transaction_type")["amount"].sum()
+    txn_type = (
+        filtered_df.groupby("transaction_type")["amount"]
+        .sum()
+        .sort_values(ascending=False)
+    )
 
     st.bar_chart(txn_type)
 
 # -------------------------
-# TAB 3: Trends
+# 🔹 TAB 3: TRENDS
 # -------------------------
 with tab3:
     st.subheader("Year-wise Growth")
 
-    trend = df.groupby("year")["amount"].sum()
+    trend = (
+        filtered_df.groupby("year")["amount"]
+        .sum()
+    )
 
     st.line_chart(trend)
 
 # =========================
 # 🔹 RAW DATA (OPTIONAL)
 # =========================
-with st.expander("Show Raw Data"):
-    st.dataframe(df)
+with st.expander("🔍 Show Raw Data"):
+    st.dataframe(filtered_df)
